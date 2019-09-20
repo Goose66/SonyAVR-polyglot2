@@ -1,0 +1,54 @@
+<nodeDefs>
+  <nodeDef id="CONTROLLER" nls="CTR">
+    <editors />
+    <sts>
+      <st id="ST" editor="CTR_BOOL" />
+    </sts>
+    <cmds>
+      <sends />
+      <accepts>
+        <cmd id="DISCOVER" />
+        <cmd id="UPDATE_PROFILE" />
+      </accepts>
+    </cmds>
+  </nodeDef>
+  <nodeDef id="RECEIVER" nls="AVR">
+    <editors />
+    <sts>
+      <st id="ST" editor="AVR_STATUS" />
+    </sts>
+    <cmds>
+      <sends />
+      <accepts>
+        <cmd id="MUTE_ALL" />
+        <cmd id="UNMUTE_ALL" />
+        <cmd id="QUERY_ALL" />
+      </accepts>
+    </cmds>
+  </nodeDef>
+  <nodeDef id="ZONE" nls="ZON">
+    <editors />
+    <sts>
+      <st id="ST" editor="ZON_STATUS" />
+      <st id="GV0" editor="ZON_SOURCE" />
+      <st id="SVOL" editor="ZON_VOLUME" />
+      <st id="GV1" editor="CTR_BOOL" />
+    </sts>
+    <cmds>
+      <sends />
+      <accepts>
+        <cmd id="DON" />
+        <cmd id="DOF" />
+        <cmd id="SET_SRC">
+          <p id="" editor="ZON_SOURCE" init="GV0" />
+        </cmd>
+        <cmd id="SET_VOL">
+          <p id="" editor="ZON_VOLUME" init="SVOL" />
+        </cmd>
+        <cmd id="MUTE" />
+        <cmd id="UNMUTE" />
+        <cmd id="TOGGLE_MUTE" />
+      </accepts>
+    </cmds>
+  </nodeDef>
+</nodeDefs>
