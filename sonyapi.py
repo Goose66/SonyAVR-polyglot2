@@ -3,16 +3,13 @@
 Python wrapper class for Sony Audio Control API using JSON-RPC over HTTP
 by Goose66 (W. Randy King) kingwrandy@gmail.com
 """
+
 import sys
 import logging
 import requests
 import json
 import ssdp
 import xml.etree.ElementTree as ET
-
-# public constants
-
-# private constants
 
 # Timeout durations for HTTP calls - defined here for easy tweaking
 _HTTP_POST_TIMEOUT = 3.05

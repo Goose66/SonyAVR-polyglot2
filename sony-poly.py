@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 """
-Polyglot v2 Node Server for Sony Audio Control API devices (e.g. STR-DN1070 and STR-DN1080) 
+Polyglot v2 NodeServer for Sony Audio Control API devices (e.g. STR-DN1070 and STR-DN1080) 
 by Goose66 (W. Randy King) kingwrandy@gmail.com
 """
 import sys
@@ -36,15 +36,13 @@ _IX_AVR_ST_ON = 2
 _IX_ZON_ST_ACTIVE = 1
 _IX_ZON_ST_INACTIVE = 0
 
-_PARAM_DEVICE_IP = "ipaddress"
-
 _LOGGER = polyinterface.LOGGER
 
 # Node for an audio zone (Main, Zone 2, Zone 3, HDMI Zone, etc.)
 class Zone(polyinterface.Node):
 
     id = "ZONE"
-    hint = 0x01060100
+    hint = [0x01, 0x06, 0x01, 0x00] # Residential/Audio Visual/AV Control Point
     _zoneURI = ""
     minVol = 0
     maxVol = 100
@@ -52,6 +50,9 @@ class Zone(polyinterface.Node):
     def __init__(self, controller, primary, addr, name, uri=None):
         super(Zone, self).__init__(controller, primary, addr, name)
     
+        # override the parent node with the receiver (defaults to controller)
+        self.parent = self.controller.nodes[self.primary]
+
         if uri is None:
 
             # retrieve uri from polyglot custom data
@@ -66,10 +67,8 @@ class Zone(polyinterface.Node):
     # Activate zone (turn on)
     def cmd_don(self, command):
 
-        receiver = self.controller.nodes[self.primary]
-        
         # Place the zone in active status
-        if receiver.interface.setActiveTerminal(self._zoneURI, "active"):
+        if  self.parent.interface.setActiveTerminal(self._zoneURI, "active"):
             self.setDriver("ST", _IX_ZON_ST_ACTIVE, True)
         else:
             _LOGGER.warning("Call to setActiveTerminal() failed in DON command handler.")
@@ -77,10 +76,8 @@ class Zone(polyinterface.Node):
     # Deactivate zone (turn off)
     def cmd_dof(self, command):
 
-        receiver = self.controller.nodes[self.primary]
-
         # Place the zone in inactive status
-        if receiver.interface.setActiveTerminal(self._zoneURI, "inactive"):
+        if self.parent.interface.setActiveTerminal(self._zoneURI, "inactive"):
             self.setDriver("ST", _IX_ZON_ST_INACTIVE, True)
         else:
             _LOGGER.warning("Call to setActiveTerminal() failed in DOF command handler.")
@@ -88,21 +85,17 @@ class Zone(polyinterface.Node):
     # Change source for zone
     def cmd_set_source(self, command):
 
-        receiver = self.controller.nodes[self.primary]
-
         # retrieve the integer index for the command
         value = int(command.get("value"))
 
         # Set the source for zone
-        if receiver.interface.setPlayContent(self._zoneURI, _SOURCE_URIS[value]):
+        if self.parent.interface.setPlayContent(self._zoneURI, _SOURCE_URIS[value]):
             self.setDriver("GV0", value, True)
         else:
             _LOGGER.warning("Call to setPlayContent() failed in SET_SRC command handler.")
 
     # Change volume for zone
     def cmd_set_volume(self, command):
-
-        receiver = self.controller.nodes[self.primary]
 
         # retrieve the integer value (%) for the command
         value = int(command.get("value"))
@@ -111,7 +104,7 @@ class Zone(polyinterface.Node):
         vol = int((value / 100 * (self.maxVol - self.minVol)) + self.minVol)
 
         # Set the volume for zone
-        if receiver.interface.setAudioVolume(self._zoneURI, str(vol)):
+        if self.parent.interface.setAudioVolume(self._zoneURI, str(vol)):
             self.setDriver("SVOL", value, True)
         else:
             _LOGGER.warning("Call to setAudioVolume() failed in SET_VOL command handler.")
@@ -119,10 +112,8 @@ class Zone(polyinterface.Node):
     # Mute zone audio
     def cmd_mute(self, command):
 
-        receiver = self.controller.nodes[self.primary]
-
         # Mute the zone
-        if receiver.interface.setAudioMute(self._zoneURI, "on"):
+        if self.parent.interface.setAudioMute(self._zoneURI, "on"):
             self.setDriver("GV1", int(True), True)
         else:
             _LOGGER.warning("Call to setAudioMute() failed in MUTE command handler.")
@@ -130,10 +121,8 @@ class Zone(polyinterface.Node):
     # Unmute zone audio
     def cmd_unmute(self, command):
 
-        receiver = self.controller.nodes[self.primary]
-
         # Unmute the zone
-        if receiver.interface.setAudioMute(self._zoneURI, "off"):
+        if self.parent.interface.setAudioMute(self._zoneURI, "off"):
             self.setDriver("GV1", int(False), True)
         else:
             _LOGGER.warning("Call to setAudioMute() failed in UNMUTE command handler.")
@@ -141,15 +130,13 @@ class Zone(polyinterface.Node):
     # Toggle mute for zone
     def cmd_toggle_mute(self, command):
 
-        receiver = self.controller.nodes[self.primary]
-
         # Toggle mute status for the zone
-        if receiver.interface.setAudioMute(self._zoneURI, "toggle"):
+        if self.parent.interface.setAudioMute(self._zoneURI, "toggle"):
             
             # Update the mute status for the zone - this is not working.
             # Receiver reports previous value. Maybe delay needed.
             # Gets picked up in next shortPoll
-            volInfo = receiver.interface.getVolumeInformation(self._zoneURI)
+            volInfo = self.parent.interface.getVolumeInformation(self._zoneURI)
             if volInfo:
                 self.setDriver("GV1", int(volInfo[0]["mute"] == "on"), True)
         else:
@@ -175,13 +162,12 @@ class Zone(polyinterface.Node):
     @staticmethod
     def formatAddr(receiverID, uri):
         return  receiverID + "_" + uri[uri.find("zone?")+5:].replace("=", "_")
-    
 
 # Node for audio device (AVR)
 class Receiver(polyinterface.Node):
 
     id = "RECEIVER"
-    hint = 0x01060100
+    hint = [0x01, 0x06, 0x01, 0x00] # Residential/Audio Visual/AV Control Point
     interface = None
     _apiURL = ""
     _apiVer = ""
@@ -194,7 +180,7 @@ class Receiver(polyinterface.Node):
 
         if apiURL is None:
     
-            # retrieve uri from polyglot custom data
+            # retrieve instance variables from polyglot custom data
             cData = controller.getCustomData(addr).split(";")
             self._apiURL = cData[0]
             self._apiVer = cData[1]
@@ -277,21 +263,24 @@ class Receiver(polyinterface.Node):
                         uri = terminal["uri"]
                         addr = Zone.formatAddr(self.address, uri)
 
-                        # retrieve the zone node for the terminal
-                        zone = self.controller.nodes[addr]
+                        # make sure a zone node exists for the terminal (may have been deleted by user)
+                        if addr in self.controller.nodes:
 
-                        # retrieve the volume and source information for the terminal
-                        source = next(item for item in sourceInfo if item["output"] == uri)
-                        volume  = next(item for item in volumeInfo if item["output"] == uri)
+                            # retrieve the zone node for the terminal
+                            zone = self.controller.nodes[addr]
 
-                        # parse the state info and set the driver volumes
-                        zone.setDriver("ST", (_IX_ZON_ST_ACTIVE if terminal["active"] == "active" else _IX_ZON_ST_INACTIVE), True, forceReport)
-                        zone.setDriver("GV0", _SOURCE_URIS.index(source["uri"]), True, forceReport)
-                        zone.minVol = volume["minVolume"]
-                        zone.maxVol = volume["maxVolume"]
-                        vol = volume["volume"]
-                        zone.setDriver("SVOL", int((vol - zone.minVol) / (zone.maxVol - zone.minVol) * 100), True, forceReport)
-                        zone.setDriver("GV1", int(volume["mute"] == "on"), True, forceReport)
+                            # retrieve the volume and source information for the terminal
+                            source = next(item for item in sourceInfo if item["output"] == uri)
+                            volume  = next(item for item in volumeInfo if item["output"] == uri)
+
+                            # parse the state info and set the driver volumes
+                            zone.setDriver("ST", (_IX_ZON_ST_ACTIVE if terminal["active"] == "active" else _IX_ZON_ST_INACTIVE), True, forceReport)
+                            zone.setDriver("GV0", _SOURCE_URIS.index(source["uri"]), True, forceReport)
+                            zone.minVol = volume["minVolume"]
+                            zone.maxVol = volume["maxVolume"]
+                            vol = volume["volume"]
+                            zone.setDriver("SVOL", int((vol - zone.minVol) / (zone.maxVol - zone.minVol) * 100), True, forceReport)
+                            zone.setDriver("GV1", int(volume["mute"] == "on"), True, forceReport)
 
     drivers = [
         {"driver": "ST", "value": 0, "uom": _ISY_INDEX_UOM}
@@ -310,12 +299,12 @@ class Controller(polyinterface.Controller):
 
     def __init__(self, poly):
         super(Controller, self).__init__(poly)
-        self.name = "SonyAVR Nodeserver"
+        self.name = "SonyAVR NodeServer"
  
-    # Start the node server
+    # Start the nodeserver
     def start(self):
 
-        _LOGGER.info("Started Sony Audio Control NodeServer...")
+        _LOGGER.info("Started SonyAVR NodeServer...")
 
         # remove all existing notices for the nodeserver
         self.removeNoticesAll()
@@ -334,15 +323,14 @@ class Controller(polyinterface.Controller):
         
                 # add receiver nodes
                 if node["node_def_id"] == "RECEIVER":
-                    
-                    # get instance variable from custom data
                     self.addNode(Receiver(self, addr, addr, node["name"]))
 
                 # add zone nodes
                 elif node["node_def_id"] == "ZONE":
-                    
-                    # get instance variable from custom data
                     self.addNode(Zone(self, node["primary"], addr, node["name"]))
+
+        # Update the nodeserver status flag
+        self.setDriver("ST", 1, True, True)
                 
         # Update the node states for all receivr nodes and force report of all driver values
         for addr in self.nodes:
@@ -385,7 +373,6 @@ class Controller(polyinterface.Controller):
         # add specififed data to custom data for specified key
         self._customData.update({key: data})
 
-
     # helper method for retrieve custom data
     def getCustomData(self, key):
 
@@ -418,7 +405,7 @@ class Controller(polyinterface.Controller):
                         self,
                         self.address,
                         dev["id"],
-                        get_valid_node_name(dev["name"]),
+                        getValidNodeName(dev["name"]),
                         dev["apiURL"],
                         dev["apiVer"]
                     )
@@ -454,7 +441,7 @@ class Controller(polyinterface.Controller):
                                     self,
                                     receiver.address,
                                     addr,
-                                    get_valid_node_name(dev["model"] + " - " + name),
+                                    getValidNodeName(dev["model"] + " - " + name),
                                     uri
                                 )
                                 self.addNode(zone)
@@ -472,11 +459,20 @@ class Controller(polyinterface.Controller):
         "UPDATE_PROFILE" : cmd_update_profile
     }
 
-# Removes invalid charaters for ISY Node description
-def get_valid_node_name(name):
+# Removes invalid charaters and lowercase ISY Node address
+def getValidNodeAddress(s):
 
-    # Remove <>`~!@#$%^&*(){}[]?/\;:"'` characters from names
-    return re.sub(r"[<>`~!@#$%^&*(){}[\]?/\\;:\"']+", "", name)
+    # remove <>`~!@#$%^&*(){}[]?/\;:"' characters
+    addr = re.sub(r"[<>`~!@#$%^&*(){}[\]?/\\;:\"']+", "", s)
+
+    # return lowercase address
+    return addr[:14].lower()
+
+# Removes invalid charaters for ISY Node description
+def getValidNodeName(s):
+
+    # remove <>`~!@#$%^&*(){}[]?/\;:"' characters from names
+    return re.sub(r"[<>`~!@#$%^&*(){}[\]?/\\;:\"']+", "", s)
 
 # Main function to establish Polyglot connection
 if __name__ == "__main__":
@@ -486,4 +482,8 @@ if __name__ == "__main__":
         control = Controller(polyglot)
         control.runForever()
     except (KeyboardInterrupt, SystemExit):
+        _LOGGER.warning("Received interrupt or exit...")
+        polyglot.stop()
+    except Exception as err:
+        _LOGGER.error('Excption: {0}'.format(err), exc_info=True)
         sys.exit(0)
