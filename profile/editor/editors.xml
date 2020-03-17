@@ -1,0 +1,22 @@
+<editors>
+  <editor id="CTR_BOOL">
+    <!-- ISY Bool UOM -->
+    <range uom="2" subset="0,1" />
+  </editor>
+  <editor id="AVR_STATUS">
+    <!-- ISY Index UOM with custom labels in NLS -->
+    <range uom="25" subset="0-2" nls="IX_AVR_ST" />
+  </editor>
+  <editor id="ZON_STATUS">
+    <!-- ISY Index UOM with custom labels in NLS -->
+    <range uom="25" subset="0-1" nls="IX_ZON_ST" />
+  </editor>
+  <editor id="ZON_SOURCE">
+    <!-- ISY Index UOM with custom labels in NLS -->
+    <range uom="25" subset="0-12" nls="IX_ZON_SRC" />
+  </editor>
+  <editor id="ZON_VOLUME">
+    <!-- ISY Index UOM with custom labels in NLS -->
+    <range uom="51" subset="0-100" />
+  </editor>
+</editors>

@@ -1,0 +1,29 @@
+{
+    "name": "SonyAVR",
+    "docs": "https://github.com/Goose66/SonyAVR-polyglotv2",
+    "type": "python3",
+    "executable": "sony-poly.py",
+    "install": "install.sh",
+    "description": "Provides local access to Sony AVRs (and other audio devices) supporting the Sony Audio Control API.",
+    "notice": "The 'Audio Control API', also known as 'the tool', is licensed to the user by Sony Video & Sound Products Inc. under the license terms of the Creative Commons Attribution- NoDerivatives 4.0 International Public License, available at https://creativecommons.org/licenses/by-nd/4.0/legalcode.",
+    "shortPoll": "20",
+    "longPoll": "60",
+    "credits": [
+        {
+           "title": "sony-poly: a Polyglot NodeServer for Sony Audio Control API Device Integration",
+           "author": "W. Randy King (Goose66)",
+           "version": "0.2.1",
+           "date": "January 4, 2020",
+           "source": "https://github.com/Goose66/sonyAVR-polyglotv2",
+           "license": "https://github.com/Goose66/sonyAVR-polyglotv2/master/LICENSE"
+       },
+       {
+            "title": "ssdp.py: Tiny python SSDP discovery library with no external dependencies",
+            "author": "Copyright 2014 Dan Krause, Python 3 hack 2016 Adam Baxter",
+            "version": "",
+            "date": "June 10, 2016",
+            "source": "https://github.com/Goose66/myq-polyglotv2",
+            "license": "http://www.apache.org/licenses/LICENSE-2.0"
+        }
+    ]
+}
