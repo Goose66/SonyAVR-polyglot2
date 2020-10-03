@@ -2,13 +2,17 @@
   <nodeDef id="CONTROLLER" nls="CTR">
     <editors />
     <sts>
-      <st id="ST" editor="CTR_BOOL" />
+      <st id="ST" editor="_2_0" /> <!-- ISY Bool UOM -->
+      <st id="GV20" editor="CTR_LOGLEVEL" />
     </sts>
     <cmds>
       <sends />
       <accepts>
         <cmd id="DISCOVER" />
         <cmd id="UPDATE_PROFILE" />
+        <cmd id="SET_LOGLEVEL">
+          <p id="" editor="CTR_LOGLEVEL" init="GV20" />
+        </cmd>                  
       </accepts>
     </cmds>
   </nodeDef>
@@ -32,7 +36,7 @@
       <st id="ST" editor="ZON_STATUS" />
       <st id="GV0" editor="ZON_SOURCE" />
       <st id="SVOL" editor="ZON_VOLUME" />
-      <st id="GV1" editor="CTR_BOOL" />
+      <st id="GV1" editor="_2_0" /> <!-- ISY Bool UOM -->
     </sts>
     <cmds>
       <sends />

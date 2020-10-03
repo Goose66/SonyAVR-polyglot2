@@ -11,6 +11,11 @@ import json
 import ssdp
 import xml.etree.ElementTree as ET
 
+# Pickup the root logger, and add a handler for module testing if none exists
+_LOGGER = logging.getLogger()
+if not _LOGGER.hasHandlers():
+    logging.basicConfig(format='%(asctime)s %(levelname)s:%(message)s', level=logging.DEBUG)
+
 # Timeout durations for HTTP calls - defined here for easy tweaking
 _HTTP_POST_TIMEOUT = 3.05
 
@@ -78,18 +83,13 @@ _API_SET_VOLUME = {
 class deviceAPI(object):
 
     # Primary constructor method
-    def __init__(self, apiURL, apiVer, logger=None):
+    def __init__(self, apiURL, apiVer, logger=_LOGGER):
 
         # Declare instance variables
         self._apiBase = apiURL
         self._apiVer = apiVer
          
-        if logger is None:
-            # setup basic console logger for debugging
-            logging.basicConfig(format='%(asctime)s %(levelname)s:%(message)s', level=logging.DEBUG)
-            self._logger = logging.getLogger() # Root logger
-        else:
-            self._logger = logger
+        self._logger = logger
 
     # Call the specified API
     def _call_api(self, api, parms=[]):
@@ -230,7 +230,7 @@ class deviceAPI(object):
         return self._call_api(_API_SET_MUTE, [{"output":output, "mute":mute}])
 
 # discover devices 
-def discover_devices(timeout=5, logger=None):
+def discover_devices(timeout=5, logger=_LOGGER):
     """Discover devices supporting Sony Audio Control API using SSDP
         
     Parameters:
@@ -238,13 +238,6 @@ def discover_devices(timeout=5, logger=None):
     logger -- logger to use for errors (defaults to root logger)
     """
     
-    if logger is None:
-        # setup basic console logger for debugging
-        logging.basicConfig(format='%(asctime)s %(levelname)s:%(message)s', level=logging.DEBUG)
-        _logger = logging.getLogger() # Root logger
-    else:
-        _logger = logger
-
     devices = []
 
     # XML namespaces from the Sony STR-DN1070 device descriptor XML file
@@ -261,7 +254,7 @@ def discover_devices(timeout=5, logger=None):
     # discover devices via the SSDP M-SEARCH method
     responses = ssdp.discover(_SSDP_SEARCH_TARGET, timeout=timeout)
 
-    _logger.debug("SSDP discovery returned %i devices.", len(responses))
+    logger.debug("SSDP discovery returned %i devices.", len(responses))
 
     # iterate through the responses 
     for response in responses:
@@ -273,23 +266,38 @@ def discover_devices(timeout=5, logger=None):
         # If the device answered SSDP broadcast with the location, the XML page at the location
         # should be available so log and terminate on all errors
         except:
-            _logger.error("Unexpected error occurred retrieving device info: %s", sys.exc_info()[0])
+            logger.error("Unexpected error occurred retrieving device info: %s", sys.exc_info()[0])
             raise
-
+        
         # parse the XML from the response
         root = ET.fromstring(response.text)
 
-        # extract the elements we need from the XML string
-        id = root.find(".//upnp:UDN", ns).text[-6:] # the last 6 digits of the "node" from the uuid (hex)
-        name = root.find(".//upnp:friendlyName", ns).text
-        model = root.find(".//upnp:modelName", ns).text
-        apiVer = root.find(".//av:X_ScalarWebAPI_Version", ns).text
-        apiURL = root.find(".//av:X_ScalarWebAPI_BaseURL", ns).text
-        
-        _logger.debug("Device found in discover - ID: %s, Name: %s, Model: %s", id, name, model)
+        # extract the Sony Audio Control API DeviceInfo node from the XML
+        apiNode = root.find(".//av:X_ScalarWebAPI_DeviceInfo", ns)
 
-        # append to device list
-        devices.append({"id": id, "name": name, "model": model, "apiVer": apiVer, "apiURL": apiURL})
+        # if the DeviceInfo node for the Sony Audio Control API was found, make sure
+        # the device supports all of the required services
+        if apiNode is not None:
+
+            # extract the supported services from the DeviceInfo nodes
+            services = []
+            for serviceType in apiNode.find("av:X_ScalarWebAPI_ServiceList", ns).findall("av:X_ScalarWebAPI_ServiceType", ns):
+                services.append(serviceType.text)
+
+            # check for system, audio, and avContent service support
+            if all(s in services for s in ("system", "audio", "avContent")):
+            
+                # extract the elements we need from the XML string
+                id = root.find(".//upnp:UDN", ns).text[-6:] # the last 6 digits of the "node" from the uuid (hex)
+                name = root.find(".//upnp:friendlyName", ns).text
+                model = root.find(".//upnp:modelName", ns).text
+                apiVer = apiNode.find("av:X_ScalarWebAPI_Version", ns).text
+                apiURL = apiNode.find("av:X_ScalarWebAPI_BaseURL", ns).text
+        
+                logger.debug("Sony Audio Control API device found in discover - ID: %s, Name: %s, Model: %s", id, name, model)
+
+                # append to device list
+                devices.append({"id": id, "name": name, "model": model, "apiVer": apiVer, "apiURL": apiURL})
 
     return devices
 

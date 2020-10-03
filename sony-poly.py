@@ -6,6 +6,7 @@ by Goose66 (W. Randy King) kingwrandy@gmail.com
 import sys
 import re
 import sonyapi
+import time
 import polyinterface
 
 _ISY_PERCENT_UOM = 51 # Percentage from 0 to 100
@@ -35,6 +36,9 @@ _IX_AVR_ST_ON = 2
 
 _IX_ZON_ST_ACTIVE = 1
 _IX_ZON_ST_INACTIVE = 0
+
+# delay after calling API set command before calling get command (seconds)
+_DELAY_AFTER_ACTION = 0.400 
 
 _LOGGER = polyinterface.LOGGER
 
@@ -67,6 +71,8 @@ class Zone(polyinterface.Node):
     # Activate zone (turn on)
     def cmd_don(self, command):
 
+        _LOGGER.info("Activate zone in cmd_don: %s", str(command))
+
         # Place the zone in active status
         if  self.parent.interface.setActiveTerminal(self._zoneURI, "active"):
             self.setDriver("ST", _IX_ZON_ST_ACTIVE, True)
@@ -76,6 +82,8 @@ class Zone(polyinterface.Node):
     # Deactivate zone (turn off)
     def cmd_dof(self, command):
 
+        _LOGGER.info("Deactivate zone in cmd_dof: %s", str(command))
+
         # Place the zone in inactive status
         if self.parent.interface.setActiveTerminal(self._zoneURI, "inactive"):
             self.setDriver("ST", _IX_ZON_ST_INACTIVE, True)
@@ -84,6 +92,8 @@ class Zone(polyinterface.Node):
 
     # Change source for zone
     def cmd_set_source(self, command):
+
+        _LOGGER.info("Set source for zone in cmd_set_source: %s", str(command))
 
         # retrieve the integer index for the command
         value = int(command.get("value"))
@@ -97,10 +107,13 @@ class Zone(polyinterface.Node):
     # Change volume for zone
     def cmd_set_volume(self, command):
 
+        _LOGGER.info("Set volume for zone in cmd_set_volume: %s", str(command))
+        
         # retrieve the integer value (%) for the command
         value = int(command.get("value"))
 
         # compute the volume value as a percentage of volume range
+        # mavVol and minVol for zone get set in updateNodeStates in the parent node
         vol = int((value / 100 * (self.maxVol - self.minVol)) + self.minVol)
 
         # Set the volume for zone
@@ -112,6 +125,8 @@ class Zone(polyinterface.Node):
     # Mute zone audio
     def cmd_mute(self, command):
 
+        _LOGGER.info("Mute zone in cmd_mute: %s", str(command))
+
         # Mute the zone
         if self.parent.interface.setAudioMute(self._zoneURI, "on"):
             self.setDriver("GV1", int(True), True)
@@ -120,6 +135,8 @@ class Zone(polyinterface.Node):
 
     # Unmute zone audio
     def cmd_unmute(self, command):
+
+        _LOGGER.info("Unmute zone in cmd_unmute: %s", str(command))
 
         # Unmute the zone
         if self.parent.interface.setAudioMute(self._zoneURI, "off"):
@@ -130,12 +147,15 @@ class Zone(polyinterface.Node):
     # Toggle mute for zone
     def cmd_toggle_mute(self, command):
 
+        _LOGGER.info("Toggle mute state for zone in cmd_toggle_mute: %s", str(command))
+        
         # Toggle mute status for the zone
         if self.parent.interface.setAudioMute(self._zoneURI, "toggle"):
             
-            # Update the mute status for the zone - this is not working.
-            # Receiver reports previous value. Maybe delay needed.
-            # Gets picked up in next shortPoll
+            # Wait for some time before getting state to allow it to settle
+            time.sleep(_DELAY_AFTER_ACTION)     
+            
+            # Update the mute status for the zone
             volInfo = self.parent.interface.getVolumeInformation(self._zoneURI)
             if volInfo:
                 self.setDriver("GV1", int(volInfo[0]["mute"] == "on"), True)
@@ -199,31 +219,47 @@ class Receiver(polyinterface.Node):
     # Mute all zones
     def cmd_mute_all(self, command):
 
+        _LOGGER.info("Mute all zones for receiver in cmd_mute_all: %s", str(command))
+
         # Mute all outputs
         if self.interface.setAudioMute("", "on"):
-            self.update_node_states()
+
+            # Wait for some time before getting state to allow it to settle
+            time.sleep(_DELAY_AFTER_ACTION)     
+
+            self.updateNodeStates()
+
         else:
             _LOGGER.warning("Call to setAudioMute() failed in MUTE command handler.")
 
     # Unmute all zones
     def cmd_unmute_all(self, command):
 
+        _LOGGER.info("Unmute all zones for receiver in cmd_unmute_all: %s", str(command))
+
         # Unmute all outputs
         if self.interface.setAudioMute("", "off"):
-            self.update_node_states()
+
+            # Wait for some time before getting state to allow it to settle
+            time.sleep(_DELAY_AFTER_ACTION)     
+
+            self.updateNodeStates()
+
         else:
             _LOGGER.warning("Call to setAudioMute() failed in UNMUTE command handler.")
 
     # Update node states for this and child nodes
     def cmd_query(self, command):
 
-        _LOGGER.debug("Updating node states in cmd_query()...")
+        _LOGGER.info("Updating node states for receiver in cmd_query()...")
 
         # Update the node states and force report of all driver values
-        self.update_node_states(True)
+        self.updateNodeStates(True)
 
      # update the state of all zones from the AVR
-    def update_node_states(self, forceReport=False):
+    def updateNodeStates(self, forceReport=False):
+
+        _LOGGER.debug("Updating state for all nodes for receiver %s.", self.address)
         
         # retrieve the power status of the AVR from the API
         powerInfo = self.interface.getPowerStatus()
@@ -312,6 +348,11 @@ class Controller(polyinterface.Controller):
         # load custom data from polyglot
         self._customData = self.polyConfig["customData"]
 
+        # If a logger level was stored for the controller, then use to set the logger level
+        level = self.getCustomData("loggerlevel")
+        if level is not None:
+            _LOGGER.setLevel(int(level))
+            
         # load nodes previously saved to the polyglot database
         # Note: has to be done in two passes to ensure Receiver (primary/parent) nodes exist
         # before Zone nodes
@@ -333,27 +374,54 @@ class Controller(polyinterface.Controller):
 
         # Update the nodeserver status flag
         self.setDriver("ST", 1, True, True)
-                
-        # Update the node states for all receivr nodes and force report of all driver values
-        for addr in self.nodes:
-            node = self.nodes[addr]
-            if node.id == "RECEIVER":
-                node.update_node_states(True)
+
+        # Set the log level to the currently set log level
+        self.setDriver("GV20", _LOGGER.level, True, True)
+
+        # Update the node states for all receiver nodes and force report of all driver values
+        self.updateNodeStates(True)
+
+        # nodeserver is being shutdown
+    def stop(self):
+                        
+        # Set the nodeserver status flag to indicate nodeserver is not running
+        # NOTE: This doesn't work in current version of Polyglot because MQTT already
+        # shutdown but Polyglot will handle ST driver for nodeserver. May be needed
+        # in future version of Polyglot
+        self.setDriver("ST", 0, True, True)
 
     # Run discovery for Sony devices
     def cmd_discover(self, command):
 
-        _LOGGER.debug("Discovering devices in cmd_discover()...")
+        _LOGGER.info("Discovering devices in cmd_discover()...")
         
         self.discover()
 
     # Update the profile on the ISY
     def cmd_update_profile(self, command):
 
-        _LOGGER.debug("Installing profile in cmd_update_profile()...")
+        _LOGGER.info("Installing profile in cmd_update_profile()...")
         
         self.poly.installprofile()
         
+    # Update the profile on the ISY
+    def cmd_setLogLevel(self, command):
+
+        _LOGGER.info("Set logging level in cmd_setLogLevel(): %s", str(command))
+
+        # retrieve the parameter value for the command
+        value = int(command.get("value"))
+ 
+        # set the current logging level
+        _LOGGER.setLevel(value)
+
+        # store the new loger level in custom data
+        self.addCustomData("loggerlevel", value)
+        self.saveCustomData(self._customData)
+        
+        # update the state driver to the level set
+        self.setDriver("GV20", value)
+
     # called every longPoll seconds (default 60)
     def longPoll(self):
 
@@ -361,13 +429,9 @@ class Controller(polyinterface.Controller):
 
     # called every shortPoll seconds (default 20)
     def shortPoll(self):
-
-        # iterate through the receiver nodes and update the node states
-        for addr in self.nodes:
-
-            node = self.nodes[addr]
-            if node.id == "RECEIVER":
-                node.update_node_states(False)
+        
+        # update the driver values for all nodes
+        self.updateNodeStates()
 
     # helper method for storing custom data
     def addCustomData(self, key, data):
@@ -379,7 +443,7 @@ class Controller(polyinterface.Controller):
     def getCustomData(self, key):
 
         # return data from custom data for key
-        return self._customData[key]
+        return self._customData.get(key)
 
     # discover audio devices and build nodes
     def discover(self):
@@ -448,17 +512,33 @@ class Controller(polyinterface.Controller):
                                 )
                                 self.addNode(zone)
 
-                    receiver.update_node_states(True)
+                    receiver.updateNodeStates(True)
 
             # send custom data added by nodes to polyglot
             self.saveCustomData(self._customData)
 
+    # update the node states for all receiver and zone nodes
+    def updateNodeStates(self, forceReport=False):
+
+        # iterate through the nodes of the nodeserver
+        for addr in self.nodes:
+        
+            # ignore the controller node
+            if addr != self.address:
+            
+                # if the node is a receiver node, call the updateNodeStates method
+                node = self.nodes[addr]
+                if node.id == "RECEIVER":
+                    node.updateNodeStates(forceReport)
+
     drivers = [
-        {"driver": "ST", "value": 0, "uom": _ISY_BOOL_UOM}
+        {"driver": "ST", "value": 0, "uom": _ISY_BOOL_UOM},
+        {"driver": "GV20", "value": 0, "uom": _ISY_INDEX_UOM}
     ]
     commands = {
         "DISCOVER": cmd_discover,
-        "UPDATE_PROFILE" : cmd_update_profile
+        "UPDATE_PROFILE" : cmd_update_profile,
+        "SET_LOGLEVEL": cmd_setLogLevel
     }
 
 # Removes invalid charaters and lowercase ISY Node address
