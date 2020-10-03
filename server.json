@@ -13,7 +13,7 @@
            "title": "sony-poly: a Polyglot NodeServer for Sony Audio Control API Device Integration",
            "author": "W. Randy King (Goose66)",
            "version": "1.0.4",
-           "date": "October 4, 2020",
+           "date": "October 3, 2020",
            "source": "https://github.com/Goose66/sonyAVR-polyglotv2",
            "license": "https://github.com/Goose66/sonyAVR-polyglotv2/master/LICENSE"
        },
