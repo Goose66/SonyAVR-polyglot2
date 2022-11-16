@@ -104,7 +104,8 @@ class deviceAPI(object):
         }
 
         # uncomment the next line to dump POST data to log file for debugging
-        #self._logger.debug("HTTP POST Data: %s", payload)
+        self._logger.debug("HTTP POST URL: %s", _API_ENDPOINT.format(baseURL = self._apiBase, libspec = api["libspec"]))
+        self._logger.debug("HTTP POST Data: %s", payload)
 
         try:
             response = requests.post(
@@ -129,7 +130,7 @@ class deviceAPI(object):
         respData = response.json()
        
         # uncomment the next line to dump response data to log file for debugging
-        #self._logger.debug("HTTP POST Response: %s", respData)
+        self._logger.debug("HTTP POST Response: %s", respData)
 
         # check for error in response
         if "error" in respData:
