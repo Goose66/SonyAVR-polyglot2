@@ -103,7 +103,7 @@ class deviceAPI(object):
             "version": api["version"]
         }
 
-        # uncomment the next line to dump POST data to log file for debugging
+        # uncomment the next line(s) to dump POST data to log file for debugging
         self._logger.debug("HTTP POST URL: %s", _API_ENDPOINT.format(baseURL = self._apiBase, libspec = api["libspec"]))
         self._logger.debug("HTTP POST Data: %s", payload)
 
@@ -264,15 +264,18 @@ def discover_devices(timeout=5, logger=_LOGGER):
         try:
             response = requests.get(response.location)   
     
-        # If the device answered SSDP broadcast with the location, the XML page at the location
-        # should be available so log and terminate on all errors
+            # uncomment the next line to dump response XML to log file for debugging
+            self._logger.debug("XML Response from discoverd device: %s", response.text)
+            
+            # parse the XML from the response
+            root = ET.fromstring(response.text)
+
+        # If the device answered SSDP broadcast with the location, a properly formatted
+        # XML page should be available at the location, so log and terminate on all errors
         except:
             logger.error("Unexpected error occurred retrieving device info: %s", sys.exc_info()[0])
             raise
         
-        # parse the XML from the response
-        root = ET.fromstring(response.text)
-
         # extract the Sony Audio Control API DeviceInfo node from the XML
         apiNode = root.find(".//av:X_ScalarWebAPI_DeviceInfo", ns)
 
