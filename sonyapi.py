@@ -265,7 +265,7 @@ def discover_devices(timeout=5, logger=_LOGGER):
             response = requests.get(response.location)   
     
             # uncomment the next line to dump response XML to log file for debugging
-            self._logger.debug("XML Response from discoverd device: %s", response.text)
+            logger.debug("XML Response from discoverd device: %s", response.text)
             
             # parse the XML from the response
             root = ET.fromstring(response.text)
